@@ -25,21 +25,43 @@ const logger = winston.createLogger({
   ]
 });
 
-const webhookQueue = new Queue(async function (parsed, cb) {
-  try {
-    await sendToWebhook(parsed);
-    logger.info('Successfully sent to webhook');
-    cb(null);
-  } catch (error) {
-    logger.error('Webhook error:', { message: error.message, stack: error.stack });
-    if (error.response) {
-      logger.error('Webhook response error:', { 
-        status: error.response.status, 
-        data: error.response.data 
-      });
+function validateConfig() {
+  const requiredKeys = ['PORT', 'SMTP_SECURE', 'WEBHOOK_URL', 'WEBHOOK_CONCURRENCY'];
+  for (const key of requiredKeys) {
+    if (!(key in config)) {
+      throw new Error(`Missing required configuration: ${key}`);
     }
-    cb(error);
   }
+}
+
+const webhookQueue = new Queue(async function (parsed, cb) {
+  const maxRetries = 3;
+  let retries = 0;
+
+  const attemptWebhook = async () => {
+    try {
+      await sendToWebhook(parsed);
+      logger.info('Successfully sent to webhook');
+      cb(null);
+    } catch (error) {
+      logger.error('Webhook error:', { message: error.message, stack: error.stack });
+      if (error.response) {
+        logger.error('Webhook response error:', { 
+          status: error.response.status, 
+          data: error.response.data 
+        });
+      }
+      if (retries < maxRetries) {
+        retries++;
+        logger.info(`Retrying webhook (attempt ${retries}/${maxRetries})`);
+        setTimeout(attemptWebhook, 1000 * retries);
+      } else {
+        cb(error);
+      }
+    }
+  };
+
+  attemptWebhook();
 }, { concurrent: config.WEBHOOK_CONCURRENCY || 5 });
 
 const server = new SMTPServer({
@@ -95,3 +117,11 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   gracefulShutdown('SIGINT signal received');
 });
+
+// Add configuration validation at startup
+try {
+  validateConfig();
+} catch (error) {
+  logger.error('Configuration error:', { message: error.message });
+  process.exit(1);
+}
