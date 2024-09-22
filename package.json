@@ -10,6 +10,8 @@
         "better-queue": "^3.8.12",
         "dotenv": "^16.4.5",
         "mailparser": "^3.7.1",
-        "smtp-server": "^3.13.5"
+        "smtp-server": "^3.13.5",
+        "winston": "^3.x.x",
+        "winston-daily-rotate-file": "^4.x.x"
     }
 }

@@ -3,21 +3,40 @@ const config = require('./config');
 const { parseEmail } = require('./services/emailParser');
 const { sendToWebhook } = require('./services/webhookService');
 require('aws-sdk/lib/maintenance_mode_message').suppress = true;
-
-// Use a more robust queue implementation
 const Queue = require('better-queue');
+const winston = require('winston');
+require('winston-daily-rotate-file');
 
-// Create a queue for webhook sending
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.DailyRotateFile({
+      filename: 'logs/application-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      zippedArchive: true,
+      maxSize: '20m',
+      maxFiles: '90d'
+    })
+  ]
+});
+
 const webhookQueue = new Queue(async function (parsed, cb) {
   try {
     await sendToWebhook(parsed);
-    console.log('Successfully sent to webhook');
+    logger.info('Successfully sent to webhook');
     cb(null);
   } catch (error) {
-    console.error('Webhook error:', error.message);
+    logger.error('Webhook error:', { message: error.message, stack: error.stack });
     if (error.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', error.response.data);
+      logger.error('Webhook response error:', { 
+        status: error.response.status, 
+        data: error.response.data 
+      });
     }
     cb(error);
   }
@@ -28,16 +47,16 @@ const server = new SMTPServer({
     parseEmail(stream)
       .then(parsed => {
         webhookQueue.push(parsed);
-        console.log('Email added to queue. Queue size:', webhookQueue.getStats().total);
+        logger.info('Email added to queue', { queueSize: webhookQueue.getStats().total });
         callback();
       })
       .catch(error => {
-        console.error('Parsing error:', error);
+        logger.error('Parsing error:', { message: error.message, stack: error.stack });
         callback(new Error('Failed to parse email'));
       });
   },
   onError(error) {
-    console.error('SMTP server error:', error);
+    logger.error('SMTP server error:', { message: error.message, stack: error.stack });
   },
   disabledCommands: ['AUTH'],
   secure: config.SMTP_SECURE
@@ -45,27 +64,27 @@ const server = new SMTPServer({
 
 server.listen(config.PORT, '0.0.0.0', err => {
   if (err) {
-    console.error('Failed to start SMTP server:', err);
+    logger.error('Failed to start SMTP server:', { message: err.message, stack: err.stack });
     process.exit(1);
   }
-  console.log(`SMTP server listening on port ${config.PORT} on all interfaces`);
+  logger.info(`SMTP server listening on port ${config.PORT} on all interfaces`);
 });
 
 function gracefulShutdown(reason) {
-  console.log(`Shutting down: ${reason}`);
+  logger.info(`Shutting down: ${reason}`);
   server.close(() => {
-    console.log('Server closed. Exiting process.');
+    logger.info('Server closed. Exiting process.');
     process.exit(0);
   });
 }
 
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
+  logger.error('Uncaught exception:', { message: err.message, stack: err.stack });
   gracefulShutdown('Uncaught exception');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('Unhandled Rejection:', { reason: reason, promise: promise });
   gracefulShutdown('Unhandled rejection');
 });
 

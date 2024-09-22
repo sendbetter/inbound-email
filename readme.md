@@ -72,11 +72,11 @@ Using inbound parse for something interesting? Please let me know, I'd love to h
 ## Todo
 
 - Rate limiting
-- Log Storage
+- ~~Log Storage~~ (completed)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request or get in touch.  
 
 ## License
 
@@ -85,3 +85,56 @@ This project is licensed under the MIT License. This means you are free to use, 
 ## Disclaimer
 
 Please ensure you have the necessary permissions and security measures in place when deploying an SMTP server. Depending on your firewall configuration, you may be exposing this service to the internet.
+
+## Security Considerations
+
+When deploying this SMTP server, please keep the following security considerations in mind:
+
+- Ensure that your server is properly secured and that only authorized IPs can access the SMTP port.
+- Use strong, unique passwords for your AWS credentials and keep them secure.
+- Regularly update the Node.js runtime and all dependencies to their latest versions.
+- Consider implementing additional authentication mechanisms for the SMTP server if needed.
+
+## Logging and Monitoring
+
+The server logs information about received emails, webhook responses, and any errors that occur. The current logging setup includes:
+
+- Console output for immediate visibility
+- Daily rotating log files for persistent storage
+- JSON formatting of log entries for easy parsing
+- Timestamp inclusion for each log entry
+ 
+Logging settings:
+
+- Log files are stored in the `logs/` directory
+- Files are named `application-YYYY-MM-DD.log`
+- Log files are rotated daily and compressed
+- Maximum log file size is set to 20MB
+- Log files are kept for 90 days
+
+I recommend:   
+
+- Review log files regularly for errors or unusual patterns.
+- Consider setting up log aggregation and analysis tools (e.g., ELK stack, Splunk).
+- Implement alerts for critical errors or unusual activity patterns.
+- Monitor system resources (CPU, memory, disk space) to ensure smooth operation.
+- Set up uptime monitoring for the SMTP server and webhook endpoint.
+
+## System Requirements
+
+- Node.js v18 or later
+- Sufficient disk space for temporary storage of attachments before S3 upload and 90 days of logging.
+- Outbound internet access for S3 uploads and webhook calls
+- Inbound access on the configured SMTP port. (Default: 25, or 587 if `SMTP_SECURE` is set to 'true')
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Check the server logs for any error messages.
+2. Ensure all environment variables are correctly set.
+3. Verify that your AWS credentials have the necessary permissions for S3 operations.
+4. Check that the webhook endpoint is accessible and responding correctly.
+5. For attachment issues, verify that the `MAX_FILE_SIZE` setting is appropriate for your use case.
+
+If problems persist, please open an issue on the GitHub repository with detailed information about the error and your setup.
